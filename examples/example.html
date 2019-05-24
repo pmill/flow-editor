@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.2/css/all.css" integrity="sha384-oS3vJWv+0UjzBfQzYUhtDYW+Pj2yciDJxpsK1OYPAYjqT085Qq/1cq5FLXAZQ7Ay" crossorigin="anonymous">
+
+    <style>
+        body, html {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .dragging {
+        }
+
+        #container {
+            font-family: 'Roboto', sans-serif;
+            font-size: 13px;
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: relative;
+
+            background-color: #f9f9f9;
+            background-position: 13px 13px;
+            background-image: linear-gradient(0deg, transparent 24%, rgba(61,177,255,0.15) 25%, rgba(61,177,255,0.15) 26%, transparent 27%, transparent 74%, rgba(61,177,255,0.15) 75%, rgba(61,177,255,0.15) 76%, transparent 77%, transparent),linear-gradient(90deg, transparent 24%, rgba(61,177,255,0.15) 25%, rgba(61,177,255,0.15) 26%, transparent 27%, transparent 74%, rgba(61,177,255,0.15) 75%, rgba(61,177,255,0.15) 76%, transparent 77%, transparent);
+            background-size: 40px 40px;
+        }
+
+        .svg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .node {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            border: 1px solid rgba(224, 224, 224, 0.6);
+            min-width: 200px;
+            position: absolute;
+        }
+
+        .node-title {
+            background: #3498db;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            color: white;
+            padding: 6px 23px;
+            text-align: center;
+            cursor: all-scroll;
+        }
+
+        .node-title:hover {
+            opacity: 0.8;
+        }
+
+        .node-body {
+            color: #666;
+            text-align: center;
+            padding: 15px 10px;
+        }
+
+        .node-outputs {
+            display: flex;
+            min-height: 15px;
+            flex-direction: column;
+            flex-flow: row nowrap;
+            border-top: 1px solid rgba(224, 224, 224, 0.6);
+        }
+
+        .node-output {
+            position: relative;
+            display: flex;
+            flex: 1 1 auto;
+            justify-content: center;
+            height: 50px;
+            align-items: center;
+            color: #666;
+            cursor: pointer;
+            padding: 0 10px;
+            border-right: 1px solid rgba(224, 224, 224, 0.6);
+        }
+
+        .node-output:last-child {
+            border-right: none;
+        }
+
+        .node-output.connected .node-output-plug {
+            background: white;
+        }
+
+        .node-output-plug {
+            background: red;
+            width: 16px;
+            height: 16px;
+            border-radius: 100%;
+            border-bottom: 2px solid rgba(224, 224, 224, 0.6);
+            position: absolute;
+            bottom: -8px;
+        }
+
+        .node-output:hover,
+        .node-output.connected:hover .node-output-plug {
+            background: #f9f9f9;
+        }
+
+        .node-connection-settings-button {
+            cursor: pointer;
+            font-size: 18px;
+            background: #9edfff;
+            border-radius: 20px;
+            padding: 6px;
+            color: white;
+            position: absolute;
+        }
+
+        .node-connection-settings-button.node-connection-state-linking {
+            display: none;
+        }
+
+        .node-connection-settings-button:hover {
+            background: #3498db;
+        }
+
+        .node-connection-end-unlinked {
+            display: none;
+        }
+
+        .node-connection-end-unlinked,
+        .node-connection-end-linked,
+        .node-connection-end-linking {
+            position: absolute;
+            font-size: 18px;
+            width: 20px;
+            height: 20px;
+            color: #9edfff;
+        }
+
+        .node-connection-end-linking {
+            background: #77dd77;
+            border-radius: 20px;
+            padding: 6px;
+            color: white;
+            width: auto;
+            height: auto;
+        }
+
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+            display: none;
+        }
+    </style>
+
+    <script id="page-node-template" type="text/x-handlebars-template">
+        <div class="node">
+            <div class="node-title" drag-handle>
+                {{title}}
+            </div>
+
+            <div container="nodeOutputs" class="node-outputs">
+            </div>
+        </div>
+    </script>
+
+    <script id="node-output-template" type="text/x-handlebars-template">
+        <div class="node-output">
+            <div class="node-output-title">
+                {{title}}
+            </div>
+            <div output-connector class="node-output-plug"></div>
+        </div>
+    </script>
+
+    <script id="node-connection-settings-button" type="text/x-handlebars-template">
+        <i class="fas fa-cog"></i>
+    </script>
+
+    <script id="node-connection-end-plus" type="text/x-handlebars-template">
+        <i class="fas fa-plus"></i>
+    </script>
+
+    <script id="node-connection-end-arrow" type="text/x-handlebars-template">
+        <i class="fas fa-play fa-rotate-90" style="margin-top:4px; margin-left:-1px;"></i>
+    </script>
+</head>
+<body>
+    <div id="container">
+
+    </div>
+
+    <script src="../dist/index.js"></script>
+
+    <script>
+        var containerElement = document.getElementById('container');
+
+        var flowDiagram = new Flow.Diagram();
+
+        flowDiagram.onConnectionSettingsButtonClicked.subscribe(function (nodeConnection) {
+            console.log('node connection settings button clicked', nodeConnection);
+        });
+
+        flowDiagram.onConnectionDroppedOnDiagram.subscribe(function (nodeConnection) {
+            console.log('node connection dropped on diagram', nodeConnection);
+        });
+
+        var registerNode1 = new Flow.NodeObject(flowDiagram);
+        registerNode1.setViewAttribute('title', 'Register Page');
+        registerNode1.setViewTemplateId('page-node-template');
+        registerNode1.setPosition(new Flow.PositionObject(100, 100));
+        flowDiagram.addNode(registerNode1);
+
+        var submitRegisterFormOutput = new Flow.NodeOutputObject(flowDiagram);
+        submitRegisterFormOutput.setViewAttribute('title', 'User submits Register Form.');
+        submitRegisterFormOutput.setViewTemplateId('node-output-template');
+        registerNode1.addOutput(submitRegisterFormOutput);
+
+        var registerUserNode = new Flow.NodeObject(flowDiagram);
+        registerUserNode.setViewAttribute('title', 'Register User');
+        registerUserNode.setViewTemplateId('page-node-template');
+        registerUserNode.setPosition(new Flow.PositionObject(300, 300));
+        flowDiagram.addNode(registerUserNode);
+
+        var connection1 = submitRegisterFormOutput.connectTo(registerUserNode);
+        connection1.setSettingsButtonViewTemplateId('node-connection-settings-button');
+        connection1.setStateConnectionIconViewTemplateId(Flow.NodeConnectionState.Unlinked, 'node-connection-end-arrow');
+        connection1.setStateConnectionIconViewTemplateId(Flow.NodeConnectionState.Linking, 'node-connection-end-plus');
+        connection1.setStateConnectionIconViewTemplateId(Flow.NodeConnectionState.Linked, 'node-connection-end-arrow');
+
+        var userRegisteredOutput = new Flow.NodeOutputObject(flowDiagram);
+        userRegisteredOutput.setViewAttribute('title', 'The user is submitted as a lead to Databowl.');
+        userRegisteredOutput.setViewTemplateId('node-output-template');
+        registerUserNode.addOutput(userRegisteredOutput);
+
+        var thankYouPageNode = new Flow.NodeObject(flowDiagram);
+        thankYouPageNode.setViewAttribute('title', 'Thank You Page');
+        thankYouPageNode.setViewTemplateId('page-node-template');
+        thankYouPageNode.setPosition(new Flow.PositionObject(500, 500));
+        flowDiagram.addNode(thankYouPageNode);
+
+        var connection2 = userRegisteredOutput.connectTo(thankYouPageNode);
+        connection2.setSettingsButtonViewTemplateId('node-connection-settings-button');
+        connection2.setStateConnectionIconViewTemplateId(Flow.NodeConnectionState.Unlinked, 'node-connection-end-arrow');
+        connection2.setStateConnectionIconViewTemplateId(Flow.NodeConnectionState.Linking, 'node-connection-end-plus');
+        connection2.setStateConnectionIconViewTemplateId(Flow.NodeConnectionState.Linked, 'node-connection-end-arrow');
+
+        flowDiagram.render(containerElement);
+    </script>
+</body>
+</html>
